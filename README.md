@@ -1,109 +1,181 @@
 msi-perkeyrgb
 ==================
 
-This progam allows to control the SteelSeries per-key RGB keyboard backlighting on MSI laptops such as the GE63VR. It *will not work* on models with region-based backlighting (such as GE62VR and others). For those you should use tools like [MSIKLM](https://github.com/Gibtnix/MSIKLM).
+This program allows you to control SteelSeries per-key RGB backlighting on MSI laptops — both the **keyboard** and the **lightbar / dragon logo**.
 
-This is an unofficial tool, I am not affiliated to MSI nor SteelSeries in any way.
+It works with devices that expose two SteelSeries HID interfaces:
+
+| Interface | USB ID | Controls |
+| --------- | ------ | -------- |
+| KLC (Keyboard Light Control) | `1038:1122` | Per-key keyboard backlight |
+| ALC (Ambient Light Control)  | `1038:1161` | Lightbar and dragon logo |
+
+This is an unofficial tool. I am not affiliated with MSI nor SteelSeries in any way.
+
+> **Fork note:** this version extends the [original msi-perkeyrgb](https://github.com/Askannz/msi-perkeyrgb) with lightbar / logo (ALC device) support and `--kbd` / `--bar` target flags.
 
 
 Installation
 ----------
 
-If you are on Archlinux, use this AUR package : [msi-perkeyrgb](https://aur.archlinux.org/packages/msi-perkeyrgb/) (not up-to-date with the Git version yet)
+### Ubuntu / Debian
 
-For Ubuntu or others :
+```bash
+sudo apt install git python3-venv libhidapi-hidraw0
 
-```
 git clone https://github.com/Askannz/msi-perkeyrgb
 cd msi-perkeyrgb/
-sudo python3 setup.py install
+python3 -m venv .venv
+source .venv/bin/activate
+pip install .
+
 sudo cp 99-msi-rgb.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+sudo udevadm trigger
 ```
 
-After installation, you must reboot your computer (necessary for the udev rule to take effect, if you don't you will run into permission problems)
+### Arch Linux
 
-Features
-----------
+AUR package: [msi-perkeyrgb](https://aur.archlinux.org/packages/msi-perkeyrgb/) (may lag behind Git)
 
-Keys can be assigned a fixed color ("steady" mode), either through a configuration file for each individual key, or via a command-line argument for the whole keyboard,
-
-A few select presets are also available for supported models, which emulate vendor-provided SteelSeries configurations.
-
-
-Compatibility
-----------
-
-This tool should probably work on any recent MSI laptop with a per-key RGB keyboard. It was tested with the following models :
-
-| Model | Basic color support 
-| ----  | ------------------- 
-| GE63  | Yes
-| GE73  | Yes
-| GE75  | Yes
-| GL63  | Yes
-| GS63  | Yes
-| GS65  | Yes
-| GS75  | Yes
-| GT63  | Yes
-| GT75  | Yes
-
-If you have some additional test results, feel free to open a GitHub issue to help expand this list !
-
-Requirements
-----------
-
-* Python 3.4+
-* setuptools
-  * **Archlinux** : `# pacman -S python-setuptools`
-  * **Ubuntu** : `# apt install python3-setuptools`
-  * **Fedora** : `# dnf install python3-setuptools`
-* libhidapi 0.8+
-	* **Archlinux** : `# pacman -S hidapi`
-	* **Ubuntu** : `# apt install libhidapi-hidraw0`
-	* **Fedora** : `# dnf install hidapi`
+After installation, **reboot** or at least re-login so the udev rule and group membership take effect.
 
 
 Permissions
 ----------
 
-**IMPORTANT** : you need to have read/write access to the HID interface of your keyboard. The included udev rule should take care of that, but here are some instructions just in case :
+The included udev rule (`99-msi-rgb.rules`) grants read/write access to both KLC and ALC HID interfaces for the `plugdev` group. Make sure your user is in that group:
 
-The HID interface is shown as `/dev/hidraw*` where `*` can be 0, 1, 2... (there can be more than one if you have a USB mouse or keyboard plugged in). Find the right one (try them all if necessary) and give yourself permissions with `# chmod 666 /dev/hidraw*`.
+```bash
+sudo usermod -aG plugdev $USER
+```
+
+Then reboot (or `newgrp plugdev`). Verify:
+
+```bash
+groups            # should list plugdev
+ls -l /dev/hidraw*  # KLC and ALC devices should show group "plugdev"
+```
+
+If you still get permission errors, find the correct `/dev/hidraw*` nodes and `chmod 666` them as a quick workaround.
 
 
 Usage
 ----------
 
-### Simple usage
+### Steady color — whole system
 
-Steady color :
-```
-msi-perkeyrgb --model <MSI model> -s <COLOR>
-```
-
-Built-in preset (see `--list-presets` for available options) :
-```
-msi-perkeyrgb --model <MSI model> -p <preset>
+```bash
+msi-perkeyrgb -s ff0000          # everything red
+msi-perkeyrgb -s ffffff          # everything white
+msi-perkeyrgb -d                 # disable all lighting
 ```
 
-### Advanced usage
+### Target selection
 
-Set from configuration file :
+Use `--kbd` or `--bar` to control keyboard and lightbar independently:
+
+```bash
+msi-perkeyrgb --kbd -s ffffff    # white keyboard only
+msi-perkeyrgb --bar -s ff00ff   # magenta lightbar only
+msi-perkeyrgb --bar -d          # disable lightbar only
+msi-perkeyrgb --kbd -d          # disable keyboard only
 ```
-msi-perkeyrgb --model <MSI model> -c <path to your configuration file>
+
+When neither flag is given, both devices are targeted.
+
+### Per-key configuration (keyboard only)
+
+```bash
+msi-perkeyrgb --model <MODEL> -c <config-file>
 ```
-The configuration file allows you to set individual key configurations. It can have any extension. See the [dedicated wiki page](https://github.com/Askannz/msi-perkeyrgb/wiki/Configuration-file-guide) for its syntax and examples.
+
+See the [configuration file guide](https://github.com/Askannz/msi-perkeyrgb/wiki/Configuration-file-guide) for syntax and examples.
+
+### Presets (keyboard only)
+
+```bash
+msi-perkeyrgb --model <MODEL> --list-presets
+msi-perkeyrgb --model <MODEL> -p <preset>
+```
+
+### Other flags
+
+| Flag | Description |
+| ---- | ----------- |
+| `-v`, `--version` | Print version and exit |
+| `--list-models` | List supported laptop models |
+| `--id VENDOR:PRODUCT` | Override USB ID (advanced) |
 
 
-How does it work, and credits
+Desktop shortcuts
 ----------
 
-The SteelSeries keyboard is connected to the MSI laptop by two independent interfaces :
-* A PS/2 interface to send keypresses
-* a USB HID-compliant interface to receive RGB commands
+You can create `.desktop` files to toggle lighting from your app launcher. Example (`~/.local/share/applications/keycolor-off.desktop`):
 
-Talking to the RGB controller from Linux is a matter of sending the correct binary packets on the USB HID interface. I used Wireshark to capture the traffic between the SteelSeries Engine on Windows and the keyboard, and then analyzed the captured data to figure out the protocol used. I was only able to reverse-engineer the simple "steady color" commands, but that work was massively improved upon by [TauAkiou](https://github.com/TauAkiou), who figured out the rest of the protocol and implemented the remaining effects (UPDATE: effects support been disabled for now, for security reasons. See https://github.com/Askannz/msi-perkeyrgb/issues/24 ). His work include an amazingly detailed write-up of the protocol which you can read [here](documentation/0b_packet_information/msi-kb-effectdoc).
+```ini
+[Desktop Entry]
+Type=Application
+Name=RGB Off
+Icon=keyboard-brightness
+Exec=bash -lc 'cd "$HOME/.local/src/msi-perkeyrgb" && source ".venv/bin/activate" && msi-perkeyrgb -d'
+Terminal=false
+```
 
-Also thanks to [tbh1](https://github.com/tbh1) for providing packet dumps of presets effects.
 
-The HID communication code was inspired by other tools designed for previous generations of MSI laptops, such as [MSIKLM](https://github.com/Gibtnix/MSIKLM).
+Compatibility
+----------
+
+Tested on:
+
+| Model | Keyboard (KLC) | Lightbar/Logo (ALC) |
+| ----- | --------------- | ------------------- |
+| MSI Raider 18 HX (A2XWIG) | ✓ | ✓ |
+| GE63 | ✓ | — |
+| GE73 | ✓ | — |
+| GE75 | ✓ | — |
+| GL63 | ✓ | — |
+| GS63 | ✓ | — |
+| GS65 | ✓ | — |
+| GS75 | ✓ | — |
+| GT63 | ✓ | — |
+| GT75 | ✓ | — |
+
+If you have test results for other models — especially ALC support — please open an issue.
+
+
+Requirements
+----------
+
+* Python 3.4+
+* libhidapi 0.8+
+  * **Ubuntu**: `sudo apt install libhidapi-hidraw0`
+  * **Arch**: `sudo pacman -S hidapi`
+  * **Fedora**: `sudo dnf install hidapi`
+
+
+How it works
+----------
+
+MSI laptops with SteelSeries RGB expose two USB HID interfaces:
+
+* **KLC** (`1038:1122`) — keyboard per-key RGB. The original msi-perkeyrgb sends color packets via feature reports split into four regions (alphanum, enter, modifiers, numpad), each carrying up to 42 key entries of 12 bytes.
+
+* **ALC** (`1038:1161`) — lightbar and logo. Uses the same packet format as KLC with one critical difference: key entries use sequential indices `0..41` instead of real keycodes. This was discovered by brute-force probing and Wireshark analysis.
+
+Both interfaces share the same protocol:
+1. Send feature reports (`0x0e`) for each of the four regions
+2. Send a refresh command (output report `0x09` + 63 zero bytes)
+
+The original HID protocol was reverse-engineered by capturing USB traffic from SteelSeries Engine on Windows. Detailed protocol documentation by [TauAkiou](https://github.com/TauAkiou) is available [here](documentation/0b_packet_information/msi-kb-effectdoc).
+
+
+Credits
+----------
+
+* [Askannz](https://github.com/Askannz) — original msi-perkeyrgb
+* [TauAkiou](https://github.com/TauAkiou) — protocol reverse-engineering and effects documentation
+* [tbh1](https://github.com/tbh1) — preset effect packet dumps
+* ALC (lightbar/logo) support — reverse-engineered on MSI Raider 18 HX under Linux
+
+The HID communication code was inspired by [MSIKLM](https://github.com/Gibtnix/MSIKLM).
